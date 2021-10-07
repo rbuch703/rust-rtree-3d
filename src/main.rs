@@ -31,20 +31,14 @@ fn main() {
     let mut rng = rand::XorShiftRng::new_unseeded();
     
     let mut points = Vec::new();
-    const NUM_POINTS : u32 = 10000;
-    const NUM_CHILD_NODES : u32 = 8;
+    const NUM_POINTS : usize = 10000;
+    const NUM_CHILD_NODES : usize = 25;
     
     let tree_height = (NUM_POINTS as f64).log(NUM_CHILD_NODES as f64).ceil() as i32;
-    let nodes_on_last_interior_level = (NUM_CHILD_NODES).checked_pow((tree_height - 1) as u32).unwrap();
-    
     println!("target tree height: {}", tree_height);
-    println!("num nodes on last interior level: {}", nodes_on_last_interior_level);
-    let max_num_children_per_node = (NUM_POINTS as f64 / nodes_on_last_interior_level as f64).ceil() as u32;
+
+    let max_num_children_per_node = (NUM_POINTS as f64).powf(1.0/tree_height as f64).ceil();
     println!("num children per node: {}", max_num_children_per_node);
-    // NUM_POINTS = nodes_will_full_child_count * max_num_children_per_node + (nodes_on_last_interior_level - nodes_will_full_child_count) * (max_num_children_per_node-1)
-    let nodes_with_full_child_count = NUM_POINTS - nodes_on_last_interior_level * (max_num_children_per_node-1);
-    println!("{} = {} * {} + {} * {}", NUM_POINTS, nodes_with_full_child_count, max_num_children_per_node, nodes_on_last_interior_level - nodes_with_full_child_count, max_num_children_per_node-1);
-    
     
     for _i in 0..NUM_POINTS
     {
@@ -52,21 +46,48 @@ fn main() {
     }
     
     points.sort_by(|lhs, rhs|{ lhs.0.partial_cmp(&rhs.0).unwrap().then_with(|| lhs.1.partial_cmp(&rhs.1).unwrap())});
+
+    let num_blocks = NUM_POINTS as f64 / max_num_children_per_node as f64;
+    println!("Total num blocks: {}", num_blocks);
+    let num_nodes_per_slice = NUM_POINTS as f64 / (num_blocks.sqrt());
+    let num_slices = (NUM_POINTS as f64 / num_nodes_per_slice).ceil() as usize ;
+    println!("#slices: {}", num_slices);
  
- 
-    for i in 0..10
+    let num_nodes_per_slice = (NUM_POINTS as f64 / num_slices as f64).ceil() as usize;
+    println!("Nodes per slice: {}", num_nodes_per_slice);
+
+    let mut start_index : usize = 0;
+    let mut num_blocks_created = 0;
+
+    for i in 0..num_slices
     {
-        let mut slice = points[i*100..std::cmp::min((i+1)*100, 1000)].to_vec();
+       
+        let nodes_in_this_slice = if (num_slices - i) * (num_nodes_per_slice-1) < (NUM_POINTS - start_index) { num_nodes_per_slice } else {num_nodes_per_slice - 1};
+        
+        let mut slice = points[start_index..start_index + nodes_in_this_slice].to_vec();
         draw_bounds(& context, &slice, 0.1, 0.1, (i as f64) *0.1);
         
         slice.sort_by(|lhs, rhs|{ lhs.1.partial_cmp(&rhs.1).unwrap()});
-        for i in 0..10
+
+
+        let num_blocks = ((slice.len() as f64) / (max_num_children_per_node as f64)).ceil() as usize;
+        let num_nodes_per_block = ((slice.len() as f64) / num_blocks as f64).ceil() as usize;
+        println!("slice {}, {} nodes, {} blocks, {} nodes per block", i, slice.len(), num_blocks, num_nodes_per_block);
+        
+        let mut block_start_index : usize = 0;
+
+        for i in 0..num_blocks
         {
-            let the_box = &slice[i*10..(i+1)*10];
+            let nodes_in_this_block = if (num_blocks - i) * (num_nodes_per_block-1) < (slice.len() - block_start_index) { num_nodes_per_block } else {num_nodes_per_block - 1};
+
+            let the_box = &slice[block_start_index..block_start_index + nodes_in_this_block];
             draw_bounds( &context, the_box, 0.1, (i as f64) *0.1, 0.1);
+            block_start_index += nodes_in_this_block;
+            num_blocks_created+=1;
         }
+        start_index += nodes_in_this_slice;
     }
-//    let mut slices = Vec::new();
+
     let mut r:f64 = 0.0;
     for (x,y) in points
     {
@@ -76,7 +97,5 @@ fn main() {
         r+= 0.001;
         context.fill().unwrap();
     }
-//    context.move_to(0.0, 0.0);
-//    context.line_to(512.0, 512.0);
-    println!("Hello, world!");
+    println!("Created a total of {} blocks", num_blocks_created);
 }
