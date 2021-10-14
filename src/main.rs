@@ -23,6 +23,13 @@ fn draw_bounds(context: & cairo::Context, points: &[(f64, f64)], r:f64, g:f64, b
     context.stroke().unwrap();
 }
 
+fn sort_key( value: &(f64,f64), dimension: usize) -> f64 {
+    return if dimension % 2 == 0
+        { value.0 }
+    else
+        { value.1 }
+}
+
 fn main() {
     let surface = cairo::PdfSurface::new(100.0, 100.0, "out.pdf").unwrap();
     let context = cairo::Context::new(&surface).unwrap();
@@ -32,7 +39,7 @@ fn main() {
     
     let mut points = Vec::new();
     const NUM_POINTS : usize = 10000;
-    const NUM_CHILD_NODES : usize = 25;
+    const NUM_CHILD_NODES : usize = 18;
     
     let tree_height = (NUM_POINTS as f64).log(NUM_CHILD_NODES as f64).ceil() as i32;
     println!("target tree height: {}", tree_height);
@@ -45,8 +52,6 @@ fn main() {
         points.push((rng.next_f64()*100.0, rng.next_f64()*100.0));
     }
     
-    points.sort_by(|lhs, rhs|{ lhs.0.partial_cmp(&rhs.0).unwrap().then_with(|| lhs.1.partial_cmp(&rhs.1).unwrap())});
-
     let num_blocks = NUM_POINTS as f64 / max_num_children_per_node as f64;
     println!("Total num blocks: {}", num_blocks);
     let num_nodes_per_slice = NUM_POINTS as f64 / (num_blocks.sqrt());
@@ -59,6 +64,8 @@ fn main() {
     let mut start_index : usize = 0;
     let mut num_blocks_created = 0;
 
+    points.sort_by(|lhs, rhs|{ sort_key(lhs, 0).partial_cmp(&sort_key(rhs,0)).unwrap()});
+
     for i in 0..num_slices
     {
        
@@ -67,7 +74,7 @@ fn main() {
         let mut slice = points[start_index..start_index + nodes_in_this_slice].to_vec();
         draw_bounds(& context, &slice, 0.1, 0.1, (i as f64) *0.1);
         
-        slice.sort_by(|lhs, rhs|{ lhs.1.partial_cmp(&rhs.1).unwrap()});
+        slice.sort_by(|lhs, rhs|{ sort_key(lhs, 1).partial_cmp(&sort_key(rhs, 1)).unwrap()});
 
 
         let num_blocks = ((slice.len() as f64) / (max_num_children_per_node as f64)).ceil() as usize;
